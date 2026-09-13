@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>俺のRAV4 OFFROAD</title>
+<style>
+*{box-sizing:border-box;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;touch-action:none}
+body{font-family:monospace;display:flex;justify-content:center}
+#app{width:min(100vw,430px);height:100dvh;display:flex;flex-direction:column;align-items:center;padding:max(7px,env(safe-area-inset-top)) 7px max(7px,env(safe-area-inset-bottom));gap:6px}
+h1{margin:2px 0;font-size:15px;color:#f4c400;text-shadow:2px 2px #900}
+#gamebox{position:relative;flex:1;min-height:0;width:min(94vw,360px);display:flex;align-items:center}
+canvas{width:100%;height:auto;max-height:100%;aspect-ratio:320/540;border:4px solid #eee;image-rendering:pixelated;background:#365c17}
+#controls{width:min(94vw,360px);display:flex;gap:12px}
+button{flex:1;height:62px;border:3px solid white;border-radius:12px;background:#333;color:white;font:bold 23px monospace;box-shadow:0 5px #111;touch-action:none}
+button:active{transform:translateY(5px);box-shadow:none;background:#f4c400;color:#111}
+#hint{height:13px;color:#aaa;font-size:9px}
+</style>
+</head>
+<body>
+<div id="app">
+<h1>🚙 俺のRAV4 OFFROAD PACKAGE II</h1>
+<div id="gamebox"><canvas id="game" width="320" height="540"></canvas></div>
+<div id="controls"><button id="L">◀ LEFT</button><button id="R">RIGHT ▶</button></div>
+<div id="hint">長押しでハンドル　｜　林道を爆走しろ！</div>
+</div>
+<script>
+(()=>{"use strict";
+const c=document.getElementById("game"),g=c.getContext("2d"),W=320,H=540;
+let state="PLAY",score=0,dist=0,stage=1,lives=3,spawn=0,shake=0,left=0,right=0,night=false,rain=false;
+let obs=[],dust=[],best=Number(localStorage.getItem("rav4_best")||0);
+const car={x:140,y:432,w:40,h:72,s:5,inv:0};
+const clamp=(n,a,b)=>Math.max(a,Math.min(b,n));
+function reset(){state="PLAY";score=0;dist=0;stage=1;lives=3;spawn=0;shake=0;obs=[];dust=[];car.x=140;car.inv=0;night=false;rain=false}
+function addObs(){
+ const lanes=[39,99,159,219,277], t=["rock","log","mud","water","branch"][Math.floor(Math.random()*5)];
+ obs.push({x:lanes[Math.floor(Math.random()*lanes.length)],y:-45,t,w:t==="log"?48:34,h:t==="log"?22:30});
+}
+function collide(a,b){return a.x+7<b.x+b.w-4&&a.x+a.w-7>b.x+4&&a.y+9<b.y+b.h-3&&a.y+a.h-7>b.y+3}
+function hitFX(){shake=8;for(let i=0;i<14;i++)dust.push({x:car.x+20,y:car.y+45,vx:(Math.random()-.5)*3,vy:-Math.random()*3,a:1})}
+function update(){
+ if(state!=="PLAY")return;
+ if(left)car.x-=car.s;if(right)car.x+=car.s;car.x=clamp(car.x,28,252);
+ dist+=2;score++;
+ stage=1+Math.floor(dist/600);
+ night=stage>=4;rain=stage===3||stage>=5;
+ spawn++;
+ if(spawn>Math.max(19,57-stage*5)){addObs();spawn=0}
+ if(car.inv>0)car.inv--;
+ for(let i=obs.length-1;i>=0;i--){
+  const o=obs[i];o.y+=3.2+stage*.45;
+  if(collide(car,o)&&car.inv===0){lives--;car.inv=65;hitFX();if(lives<=0){state="OVER";best=Math.max(best,score);localStorage.setItem("rav4_best",best)}}
+  if(o.y>H+50)obs.splice(i,1);
+ }
+ dust.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.1;p.a-=.035});dust=dust.filter(p=>p.a>0);
+ if(dist>=3000)state="CLEAR";if(shake)shake--;
+}
+function road(){
+ g.fillStyle=night?"#101b09":"#315b14";g.fillRect(0,0,W,H);
+ g.fillStyle=night?"#3b2919":"#71451f";g.fillRect(18,0,W-36,H);
+ let o=(dist*1.7)%30;
+ for(let y=-30;y<H;y+=30){
+  g.fillStyle="#53341b";g.fillRect(47,y+o,8,17);g.fillRect(265,y+o+7,8,18);
+  g.fillStyle="#94714a";g.fillRect(70,y+o+5,5,5);g.fillRect(240,y+o+18,5,5);
+ }
+ g.fillStyle="rgba(35,25,15,.35)";g.fillRect(83,0,8,H);g.fillRect(229,0,8,H);
+}
+function rav4(){
+ if(car.inv&&Math.floor(car.inv/4)%2===0)return;
+ const X=car.x,Y=car.y;
+ g.fillStyle="rgba(0,0,0,.4)";g.fillRect(X+3,Y+8,35,61);
+ // chunky offroad tires
+ g.fillStyle="#111";[[0,13],[33,13],[0,47],[33,47]].forEach(p=>g.fillRect(X+p[0],Y+p[1],7,19));
+ // black body / cladding
+ g.fillStyle="#161616";g.fillRect(X+5,Y+3,30,65);
+ // roof
+ g.fillStyle="#252525";g.fillRect(X+8,Y+2,24,8);
+ // windows
+ g.fillStyle="#6d8790";g.fillRect(X+8,Y+12,24,15);
+ g.fillStyle="#17262b";g.fillRect(X+10,Y+14,20,11);
+ // side windows
+ g.fillStyle="#82969a";g.fillRect(X+8,Y+29,24,16);
+ // rugged black cladding
+ g.fillStyle="#0b0b0b";g.fillRect(X+4,Y+25,32,9);g.fillRect(X+4,Y+45,32,13);
+ // front bumper + grille
+ g.fillStyle="#555";g.fillRect(X+8,Y+57,24,9);g.fillStyle="#ddd";g.fillRect(X+11,Y+59,18,3);
+ // LED headlights
+ g.fillStyle="#fff4a0";g.fillRect(X+7,Y+54,6,5);g.fillRect(X+27,Y+54,6,5);
+ // red tail lamps / roof rails
+ g.fillStyle="#d21d16";g.fillRect(X+7,Y+6,5,6);g.fillRect(X+28,Y+6,5,6);
+ g.fillStyle="#050505";g.fillRect(X+7,Y,3,14);g.fillRect(X+30,Y,3,14);
+ // RAV4 badge-like mark
+ g.fillStyle="#d9d9d9";g.fillRect(X+14,Y+35,12,2);
+ // wheels highlight
+ g.fillStyle="#666";g.fillRect(X,Y+17,3,8);g.fillRect(X+37,Y+17,3,8);g.fillRect(X,Y+51,3,8);g.fillRect(X+37,Y+51,3,8);
+}
+function obstacle(o){
+ if(o.t==="rock"){g.fillStyle="#686868";g.fillRect(o.x,o.y+5,34,23);g.fillStyle="#aaa";g.fillRect(o.x+7,o.y,16,12)}
+ if(o.t==="log"){g.fillStyle="#633719";g.fillRect(o.x,o.y,48,22);g.fillStyle="#a86b37";g.fillRect(o.x+4,o.y+4,40,13);g.fillStyle="#dfb66d";g.fillRect(o.x+2,o.y+5,4,12)}
+ if(o.t==="mud"){g.fillStyle="#3b2516";g.fillRect(o.x,o.y,34,28);g.fillStyle="#8b5b2d";g.fillRect(o.x+5,o.y+7,24,12)}
+ if(o.t==="water"){g.fillStyle="#205f9f";g.fillRect(o.x,o.y,34,28);g.fillStyle="#79cbed";g.fillRect(o.x+5,o.y+6,21,5)}
+ if(o.t==="branch"){g.fillStyle="#4a2b16";g.fillRect(o.x+15,o.y,5,30);g.fillRect(o.x,o.y+15,34,5)}
+}
+function hud(){
+ g.fillStyle="#050505";g.fillRect(0,0,W,40);g.strokeStyle="#fff";g.strokeRect(0,0,W,40);
+ g.fillStyle="#fff";g.font="11px monospace";g.fillText("STAGE "+stage,8,15);g.fillText("SCORE "+score,8,32);
+ g.fillText("LIFE "+"♥".repeat(lives),112,15);g.fillText("DIST "+dist+"m",112,32);
+ g.fillStyle="#f4c400";g.fillText("RAV4",260,15);g.fillStyle="#fff";g.fillText(stage>=3?"TRAIL ON":"OFF II",250,32);
+}
+function overlay(title,sub){
+ g.fillStyle="rgba(0,0,0,.84)";g.fillRect(20,175,280,140);
+ g.textAlign="center";g.fillStyle=title==="GAME OVER"?"#f00":"#0f0";g.font="21px monospace";g.fillText(title,160,218);
+ g.fillStyle="#fff";g.font="11px monospace";g.fillText(sub,160,250);
+ g.fillStyle="#f4c400";g.fillText("SCORE "+score,160,275);
+ if(title==="GAME OVER")g.fillText("BEST "+best,160,294);
+ g.fillStyle="#fff";g.fillText("画面タップでリトライ",160,308);g.textAlign="left";
+}
+function draw(){
+ g.save();if(shake)g.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake);
+ road();obs.forEach(obstacle);
+ dust.forEach(p=>{g.globalAlpha=p.a;g.fillStyle="#c9ad7c";g.fillRect(p.x,p.y,3,3);g.globalAlpha=1});
+ rav4();
+ if(rain){g.strokeStyle="rgba(180,210,255,.5)";for(let i=0;i<45;i++){let rx=(i*71+dist*2)%W,ry=(i*37+dist*4)%H;g.beginPath();g.moveTo(rx,ry);g.lineTo(rx-4,ry+10);g.stroke()}}
+ hud();
+ if(stage>=5&&state==="PLAY"){g.fillStyle="#f4c400";g.font="10px monospace";g.fillText("⚠ LIMIT OFFROAD",190,60)}
+ if(state==="OVER")overlay("GAME OVER","林道の限界…");
+ if(state==="CLEAR")overlay("RAV4 MASTER","3000m制覇！");
+ g.restore();
+}
+function loop(){update();draw();requestAnimationFrame(loop)}
+function bind(id,set){
+ const b=document.getElementById(id),on=e=>{e.preventDefault();set(1);try{b.setPointerCapture(e.pointerId)}catch(_){}},off=e=>{e.preventDefault();set(0)};
+ b.addEventListener("pointerdown",on,{passive:false});b.addEventListener("pointerup",off,{passive:false});b.addEventListener("pointercancel",off,{passive:false});b.addEventListener("pointerleave",off,{passive:false});
+}
+bind("L",v=>left=v);bind("R",v=>right=v);
+c.addEventListener("pointerdown",e=>{e.preventDefault();if(state!=="PLAY")reset()},{passive:false});
+reset();loop();
+})();
+</script>
+</body>
+</html>
